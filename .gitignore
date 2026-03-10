@@ -1,0 +1,16 @@
+# Training Data & Logs (The big stuff)
+logs/
+models/
+MUJOCO_LOG.TXT
+evaluations.npz
+
+# Python system files
+__pycache__/
+*.pyc
+
+# IDE settings
+.vscode/
+
+# Menagerie Filter
+mujoco_menagerie/*
+!mujoco_menagerie/boston_dynamics_spot/

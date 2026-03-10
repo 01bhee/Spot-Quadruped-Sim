@@ -10,7 +10,3 @@ __pycache__/
 
 # IDE settings
 .vscode/
-
-# Menagerie Filter
-mujoco_menagerie/*
-!mujoco_menagerie/boston_dynamics_spot/

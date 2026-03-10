@@ -60,69 +60,52 @@ class SpotEnv(gym.Env):
                 pass
         return contacts
 
-    def _calc_reward(self, action):
+   def _calc_reward(self, action):
         # 1. Strict Target Tracking
-        target_v = 0.3 
+        target_v = 0.4 
         x_vel = self.data.qvel[0]
         vel_ratio = np.clip(x_vel / target_v, 0.0, 1.0)
-        reward_vel = vel_ratio * 5.0 
+        reward_vel = vel_ratio * 3.0 
 
-        # 2. The Energy Drain (Increased to 3.0 to break the Statue trap!)
-        step_penalty = 1.0
+        # 2. The Energy Drain
+        step_penalty = 2.0
 
-        # 3. Airtime 
-        # current_contacts = self._get_contact_states()
-        # first_contact = (self._feet_air_time > 0.15) * current_contacts
-        # reward_airtime = np.sum(self._feet_air_time[first_contact])
-        
-        # self._feet_air_time += self.dt
-        # self._feet_air_time[current_contacts] = 0 
-
-        # --- 3. Airtime & Gait ---
+        # 3. HIGH STEP Airtime (Increased to 0.1 for a visible, proud trot!)
         current_contacts = self._get_contact_states()
-        # Reward legs staying in the air for a minimum duration to encourage stepping
-        reward_airtime = np.sum((self._feet_air_time > 0.1) * (current_contacts > 0.5) * self._feet_air_time)
-    
+        first_contact = (self._feet_air_time > 0.1) * current_contacts
+        reward_airtime = np.sum(self._feet_air_time[first_contact])
+        
         self._feet_air_time += self.dt
-        self._feet_air_time[current_contacts > 0.5] = 0
+        self._feet_air_time[current_contacts] = 0 
 
-        # 4. The Gait Enforcer
+        # 4. The Gait Enforcer (Trot Synchronization)
         contacts_float = current_contacts.astype(float)
         trot_error = np.abs(contacts_float[0] - contacts_float[3]) + \
                      np.abs(contacts_float[1] - contacts_float[2])
-        sync_penalty = trot_error * 1.0  
+        sync_penalty = trot_error * 2.0  
 
-        # 5. Effort & Style Penalties 
-        cost_torque = np.sum(np.square(self.data.ctrl)) * 0.0001 
-        cost_smooth = np.sum(np.square(action - self.last_action)) * 0.01
+        # 5. ALL LEGS ACTIVE & Direction Penalties 
+        cost_torque = np.sum(np.square(self.data.ctrl)) * 0.001 
+        cost_smooth = np.sum(np.square(action - self.last_action)) * 0.05
         
-        fl_vel = np.sum(np.square(self.data.qvel[6:9]))   
-        fr_vel = np.sum(np.square(self.data.qvel[9:12]))  
-        hl_vel = np.sum(np.square(self.data.qvel[12:15])) 
-        hr_vel = np.sum(np.square(self.data.qvel[15:18])) 
-
-        # TRUE LIMP PENALTY: With a safety cap of 5.0 to prevent math explosions!
-        raw_limp = np.abs(fl_vel - hr_vel) + np.abs(fr_vel - hl_vel)
-        limp_penalty = np.clip(raw_limp, 0.0, 5.0) * 0.3
-
+        # MASSIVE increase to limp penalty. Forces all joints to share the work equally.
+        limp_penalty = np.var(np.abs(self.data.qvel[6:18])) * 0.5 
+        
         y_vel = self.data.qvel[1]
         yaw_rate = self.data.qvel[5]
         direction_penalty = (np.square(y_vel) + np.square(yaw_rate)) * 2.0
-        
-        # POSTURE PENALTY: With a safety cap of 1.0!
-        raw_posture = np.sum(np.square(self.data.qpos[4:6]))
-        posture_penalty = np.clip(raw_posture, 0.0, 1.0) * 5.0
-        
-        # 6. Posture Rewards (Max total: +2.2)
+
+        # 6. STRICT BALANCE (Posture & Height)
         reward_orient = np.exp(-np.sum(np.square(self.data.qpos[4:6])) / 0.1)
         reward_height = np.exp(-np.square(self.data.qpos[2] - 0.46) / 0.01)
 
         # --- FINAL CALCULATION ---
+        # Notice reward_orient is now multiplied by 1.5 for strict balance
         total_reward = reward_vel + \
                        (1.0 * reward_height) + \
-                       (1.2 * reward_orient) + \
+                       (1.5 * reward_orient) + \
                        (2.0 * reward_airtime) - \
-                       step_penalty - cost_smooth - cost_torque - limp_penalty - sync_penalty - direction_penalty - posture_penalty
+                       step_penalty - cost_smooth - cost_torque - limp_penalty - sync_penalty - direction_penalty
         
         return total_reward
 

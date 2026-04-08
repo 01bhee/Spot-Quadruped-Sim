@@ -1,27 +1,47 @@
 import gymnasium as gym
 from stable_baselines3 import PPO
+from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 from spot_env import SpotEnv
 import time
 import numpy as np
+import os
 
 MODEL_PATH = r"D:\Users\mimim\Documents\FYP\mujoco_menagerie\boston_dynamics_spot\scene.xml"
-SAVED_MODEL = r"D:\Users\mimim\Documents\FYP\models\best_modelZ.zip"
+SAVED_MODEL = r"D:\Users\mimim\Documents\FYP\models\model1B.zip"
 NUM_EPISODES = 10  # Evaluate over 10 rounds
 
 def evaluate_brain():
-    env = SpotEnv(MODEL_PATH, render_mode="human")
+    # 1. Paths
+    brain_name = os.path.basename(SAVED_MODEL).replace(".zip", "")
+    model_dir = os.path.dirname(SAVED_MODEL)
+    vec_norm_path = os.path.join(model_dir, f"{brain_name}_vecnormalize.pkl")
     
+    # 2. Setup Environment
+    raw_env = SpotEnv(MODEL_PATH, render_mode="human")
+    
+    # Wrap in DummyVecEnv
+    env = DummyVecEnv([lambda: raw_env])
+    
+    # 3. Load Normalization Stats (CRITICAL or agent goes blind)
+    if os.path.exists(vec_norm_path):
+        env = VecNormalize.load(vec_norm_path, env)
+        env.training = False
+        env.norm_reward = False
+        print("Loaded observation normalization stats.")
+    else:
+        print("WARNING: No VecNormalize stats found! Agent might perform poorly.")
+
     try:
-        model = PPO.load(SAVED_MODEL)
+        model = PPO.load(SAVED_MODEL, env=env)
         print(f"--- Evaluating {SAVED_MODEL} ---")
-    except:
-        print(f"Error: {SAVED_MODEL} not found.")
+    except Exception as e:
+        print(f"Error loading model: {e}")
         return
 
     all_rewards = []
     
     for episode in range(NUM_EPISODES):
-        obs, _ = env.reset()
+        obs = env.reset()
         done = False
         episode_reward = 0
         steps = 0
@@ -31,14 +51,13 @@ def evaluate_brain():
         # We keep the 5000 step limit here so we can compare rounds fairly
         while not done and steps < 5000:
             action, _ = model.predict(obs, deterministic=True)
-            obs, reward, terminated, truncated, info = env.step(action)
+            obs, reward, done, info = env.step(action)
             
-            env.render()
+            raw_env.render()
             time.sleep(0.005) # Faster speed for evaluation
             
-            episode_reward += reward
+            episode_reward += reward[0]
             steps += 1
-            done = terminated or truncated
 
         all_rewards.append(episode_reward)
         print(f"Round {episode + 1} finished. Reward: {episode_reward:.2f} | Steps: {steps}")

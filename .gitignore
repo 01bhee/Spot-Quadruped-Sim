@@ -3,6 +3,7 @@ logs/
 models/
 MUJOCO_LOG.TXT
 evaluations.npz
+Graphs
 
 # Python system files
 __pycache__/
@@ -10,3 +11,11 @@ __pycache__/
 
 # IDE settings
 .vscode/
+
+#new files
+telemetry.py
+trainA.py
+spot_envA.py
+plot_icra_style.py
+
+mujoco_menagerie

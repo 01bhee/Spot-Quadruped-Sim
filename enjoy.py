@@ -26,8 +26,6 @@ def evaluate_brain():
     # 3. Load Normalization Stats (CRITICAL or agent goes blind)
     if os.path.exists(vec_norm_path):
         loaded_norm = VecNormalize.load(vec_norm_path, env)
-        # Guard against stale stats from an old obs-space dimension (e.g. 35-dim or 51-dim).
-        # A silent mismatch corrupts every normalised observation the policy receives.
         saved_dim    = loaded_norm.obs_rms.mean.shape[0]
         expected_dim = env.observation_space.shape[0]
         if saved_dim != expected_dim:

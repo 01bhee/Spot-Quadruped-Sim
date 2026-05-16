@@ -1,47 +1,111 @@
-<div align="center">
-  <h1>🐕 Spot Quadruped Simulation</h1>
-  <p><b>Locomotion via Proximal Policy Optimization (PPO) & MuJoCo</b></p>
+# 🐾 Spot Quadruped Terrain Adaptation — Curriculum RL
 
-  <img src="https://img.shields.io/badge/Python-3.9+-blue?style=for-the-badge&logo=python" alt="Python Version">
-  <img src="https://img.shields.io/badge/Framework-Stable--Baselines3-green?style=for-the-badge" alt="Framework">
-  <img src="https://img.shields.io/badge/Physics-MuJoCo-red?style=for-the-badge" alt="Physics Engine">
-</div>
+A reinforcement learning system that trains a Boston Dynamics Spot quadruped to walk across progressively challenging terrains. The robot learns using PPO (Proximal Policy Optimization) with proprioceptive-only observations — no cameras, just joint states and body pose. 🤖
 
 ---
 
-## 🚀 Executive Summary
-This repository contains a high-fidelity simulation of the **Boston Dynamics Spot** robot. Developed as a Final Year Project (FYP), it explores the intersection of **Deep Reinforcement Learning** and **Legged Locomotion**. The goal is to train a robust control policy capable of stable walking and recovery in dynamic environments.
+## ⚙️ Install
 
-### 🛠️ Core Technology Stack
-<table align="center">
-  <tr>
-    <td align="center"><b>Physics Engine</b></td>
-    <td align="center"><b>RL Algorithm</b></td>
-    <td align="center"><b>Environment</b></td>
-  </tr>
-  <tr>
-    <td align="center">MuJoCo (2.3+)</td>
-    <td align="center">PPO (Proximal Policy Optimization)</td>
-    <td align="center">Gymnasium / OpenAI Gym</td>
-  </tr>
-</table>
+```bash
+pip install stable-baselines3[extra] mujoco torch
+```
+
+The Spot robot model is from [MuJoCo Menagerie](https://github.com/google-deepmind/mujoco_menagerie). Clone it and place the `boston_dynamics_spot` folder under `mujoco_menagerie/`. 📦
 
 ---
 
-## 🧠 Training Architecture
-The agent is trained using a **PPO (Proximal Policy Optimization)** actor-critic architecture. The reward function is meticulously balanced to prioritize:
+## 🧠 How It Works
 
-* **Forward Progress:** Linear velocity tracking ($v_{target} = 0.5\text{ m/s}$).
-* **Torque Efficiency:** Minimizing $L2$ norm of joint torques to prevent "jittery" movement.
-* **Posture Stability:** Penalizing excessive roll and pitch to maintain a level chassis.
+Training is split into two phases:
+
+**Phase 1 — Flat ground (`train.py`)** 🏔️  
+Spot learns a stable trot gait from scratch on flat ground. Three sub-phases are controlled by flags in `spot_env.py`:
+- 🟡 Phase A: robot discovers forward motion
+- 🟠 Phase B: gait shaping rewards kick in — trot emerges
+- 🟢 Phase C: path fidelity reward added — robot learns to walk straight
+
+**Phase 2 — Curriculum (`trainC.py`)** 📈  
+The flat-ground policy is fine-tuned across four terrain types in three stages:
+
+| Stage | Terrain | Steps | Goal |
+|-------|---------|-------|------|
+| 1 | 🪨 Rough / rubble | 1 000 000 | Step over debris |
+| 2 | 🌊 Flood + ❄️ Snow | 500 000 | Adapt to low friction |
+| 3 | 🌍 All four terrains | 500 000 | Full generalisation |
+
+The script pauses between stages so you can evaluate before continuing. ⏸️
 
 ---
 
-## 🔮 Future Research: Meta-Reinforcement Learning
-The next milestone for this project is **Terrain Adaptation via Meta-RL**. 
+## 🗂️ Files
 
-> "Standard RL produces specialists; Meta-RL produces survivors."
-
-The implementation will focus on algorithms like **PEARL (Probabilistic Embeddings for Adult RL)** to allow Spot to instantly adjust its gait when moving between surfaces like sand, gravel, and concrete without needing a full retraining session.
+| File | Description |
+|------|-------------|
+| `spot_env.py` | Base Gymnasium environment — defines the 52-dim observation space, reward function, and episode termination |
+| `spot_sar_env.py` | Extends `SpotEnv` for terrain training — overrides the reward to handle uneven ground and adds domain randomisation for rubble |
+| `train.py` | PPO training on flat ground |
+| `trainC.py` | Curriculum training across the three terrain stages |
+| `enjoy.py` | Loads and visualises a flat-ground policy |
+| `testinsar.py` | Loads and visualises a curriculum policy, prints distance travelled and fall/stall results per episode |
 
 ---
+
+## 👁️ Observation Space (52-dim)
+
+| Component | Dims |
+|-----------|------|
+| 🧍 Body pose — height, orientation, joint angles | 17 |
+| ↔️ Y position (lateral drift) | 1 |
+| 💨 Linear + angular + joint velocities | 18 |
+| 🦾 Last action (joint torques) | 12 |
+| 🦶 Foot contacts | 4 |
+
+---
+
+## 🚀 Usage
+
+### Train flat-ground base policy
+```bash
+python train.py
+```
+Output: `models/<BRAIN_NAME>.zip` 💾
+
+### Run curriculum training
+Update `BASE_BRAIN` in `trainC.py` to point to your flat-ground model, then:
+```bash
+python trainC.py
+```
+Output: `models/curriculum/` 💾
+
+### Visualise flat-ground policy 🎥
+```bash
+python enjoy.py
+```
+
+### Visualise curriculum policy 🎬
+Set `STAGE` and `SCENE` at the top of `testinsar.py`, then:
+```bash
+python testinsar.py
+```
+
+| STAGE | Valid SCENE values |
+|-------|--------------------|
+| 1 | `"rough"` |
+| 2 | `"flood"`, `"snow"` |
+| 3 | `"rough"`, `"flood"`, `"snow"`, `"stairs"` |
+
+### 📊 Monitor training
+```bash
+tensorboard --logdir logs/
+```
+
+---
+
+## 🌍 Terrain Scenes
+
+| Scene | Friction | Description |
+|-------|----------|-------------|
+| 🪨 `rough` | 1.0 | Rubble debris 3–5 cm tall, randomised layout each episode |
+| 🌊 `flood` | 0.4 | Wet flat ground |
+| ❄️ `snow` | 0.2 | Icy ground |
+| 🪜 `stairs` | 1.0 | Five steps with 5 cm rise |

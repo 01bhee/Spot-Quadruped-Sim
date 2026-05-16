@@ -6,8 +6,9 @@ import time
 import numpy as np
 import os
 
-MODEL_PATH = r"D:\Users\mimim\Documents\FYP\mujoco_menagerie\boston_dynamics_spot\scene.xml"
-SAVED_MODEL = r"D:\Users\mimim\Documents\FYP\models\model1B.zip"
+_HERE       = os.path.dirname(os.path.abspath(__file__))
+MODEL_PATH  = os.path.join(_HERE, "mujoco_menagerie", "boston_dynamics_spot", "scene.xml")
+SAVED_MODEL = os.path.join(_HERE, "models", "scratch_v2.zip")
 NUM_EPISODES = 10  # Evaluate over 10 rounds
 
 def evaluate_brain():
@@ -24,10 +25,19 @@ def evaluate_brain():
     
     # 3. Load Normalization Stats (CRITICAL or agent goes blind)
     if os.path.exists(vec_norm_path):
-        env = VecNormalize.load(vec_norm_path, env)
-        env.training = False
-        env.norm_reward = False
-        print("Loaded observation normalization stats.")
+        loaded_norm = VecNormalize.load(vec_norm_path, env)
+        # Guard against stale stats from an old obs-space dimension (e.g. 35-dim or 51-dim).
+        # A silent mismatch corrupts every normalised observation the policy receives.
+        saved_dim    = loaded_norm.obs_rms.mean.shape[0]
+        expected_dim = env.observation_space.shape[0]
+        if saved_dim != expected_dim:
+            print(f"WARNING: VecNormalize stats are {saved_dim}-dim but env is "
+                  f"{expected_dim}-dim — discarding stale stats, running unnormalised.")
+        else:
+            env = loaded_norm
+            env.training = False
+            env.norm_reward = False
+            print(f"Loaded observation normalization stats ({saved_dim}-dim).")
     else:
         print("WARNING: No VecNormalize stats found! Agent might perform poorly.")
 

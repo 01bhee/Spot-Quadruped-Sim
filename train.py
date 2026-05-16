@@ -39,7 +39,8 @@ class RewardComponentLogger(BaseCallback):
         self._counts = 0
 
 # 1. Configuration and Paths
-MODEL_PATH = r"D:\Users\mimim\Documents\FYP\mujoco_menagerie\boston_dynamics_spot\scene.xml"
+_HERE      = os.path.dirname(os.path.abspath(__file__))
+MODEL_PATH = os.path.join(_HERE, "mujoco_menagerie", "boston_dynamics_spot", "scene.xml")
 LOG_DIR = "./logs/"
 MODEL_DIR = "./models/"
 os.makedirs(LOG_DIR, exist_ok=True)
@@ -47,20 +48,15 @@ os.makedirs(MODEL_DIR, exist_ok=True)
 
 # =========================================================================
 # ---> CHANGE THIS SINGLE LINE WHENEVER YOU WANT TO START A NEW BRAIN <---
-BRAIN_NAME = "model1B"
+BRAIN_NAME = "scratch_v2"
 # =========================================================================
-# Warm-start: when BRAIN_NAME has no saved weights yet, inherit from this
-# brain instead of starting from random. The log_std is reset afterward
-# so the policy explores the new reward landscape rather than rigidly
-# repeating the old behaviour. Set to None to always start fresh.
-WARM_START_FROM = None   # <-- weights source, or None (None = fresh random weights)
-# If the warm-start brain has no vecnormalize, borrow stats from this brain instead.
-# The obs space is always the same 35 dims, so stats transfer cleanly.
-WARM_NORM_FROM  = None   # <-- norm stats source (can be same as WARM_START_FROM)
-# Optional: override log_std on the next run to boost exploration.
-# std = exp(log_std), so 0.0 → std=1.0, -0.1 → std≈0.9, -0.3 → std≈0.74
-# Set to a float to reset, then set back to None to resume normally.
-RESET_LOG_STD   = 0.0   # force std back down from ~1.6 to ~0.74; set None once stable
+# Fresh start — no warm-start from any previous brain.
+# The diagonal-walk habit from model1C is too deeply ingrained to fine-tune
+# out of. Starting clean means the policy never learns the 22° walk in the
+# first place, which is far easier than unlearning it.
+WARM_START_FROM = None
+WARM_NORM_FROM  = None
+RESET_LOG_STD   = 0.0
 # =========================================================================
 BRAIN_FILE_PATH = os.path.join(MODEL_DIR, BRAIN_NAME)
 
@@ -97,7 +93,14 @@ def train():
         # Override ent_coef: it's baked into the saved model as 0.01 but that
         # value keeps pushing std upward during fine-tuning. 0.003 keeps just
         # enough entropy bonus to prevent premature collapse without inflating std.
-        model.ent_coef = 0.003
+        model.ent_coef = 0.01
+        # Tighten clip_range and learning rate for fine-tuning stability.
+        # The default 0.15 clip_range was producing clip_fraction ~0.58 (healthy
+        # is 0.1-0.3), meaning over half of updates were being clipped and the
+        # policy was thrashing rather than converging. 0.1 keeps updates smaller
+        # and more controlled. Lower LR (1.5e-4) complements this.
+        model.clip_range = lambda _: 0.1
+        model.learning_rate = lambda _: 1.5e-4
         if RESET_LOG_STD is not None:
             model.policy.log_std.data.fill_(RESET_LOG_STD)
             print(f"  log_std reset to {RESET_LOG_STD} (std ≈ {torch.exp(torch.tensor(RESET_LOG_STD)).item():.3f})")
@@ -116,7 +119,20 @@ def train():
             warm_norm_path = os.path.join(MODEL_DIR, f"{norm_source}_vecnormalize.pkl")
         if os.path.exists(warm_norm_path):
             print(f"  Loading norm stats from '{norm_source}'...")
-            env = VecNormalize.load(warm_norm_path, env)
+            loaded_norm = VecNormalize.load(warm_norm_path, env)
+            # SAFETY CHECK: confirm the saved stats have the same obs dimension
+            # as the current environment. A mismatch (e.g. old 35-dim stats
+            # loaded into a 52-dim env) silently corrupts every observation
+            # the policy receives and causes "not moving" / erratic behaviour.
+            saved_dim = loaded_norm.obs_rms.mean.shape[0]
+            expected_dim = env.observation_space.shape[0]
+            if saved_dim != expected_dim:
+                print(f"  WARNING: norm stats are {saved_dim}-dim but env is "
+                      f"{expected_dim}-dim. Discarding stale stats and creating fresh.")
+                env = VecNormalize(env, norm_obs=True, norm_reward=True, clip_obs=10.)
+            else:
+                env = loaded_norm
+                print(f"  Obs dim check passed ({saved_dim}-dim). Stats loaded OK.")
         else:
             print(f"  No norm stats found — creating fresh VecNormalize.")
             env = VecNormalize(env, norm_obs=True, norm_reward=True, clip_obs=10.)
@@ -188,7 +204,7 @@ def train():
     print(">>> Press the VS Code STOP button at any time to safely save and exit. <<<\n")
 
     model.learn(
-        total_timesteps=500_000,
+        total_timesteps=1_000_000,
         tb_log_name=f"PPO_{BRAIN_NAME}",
         callback=[eval_callback, RewardComponentLogger()]
     )

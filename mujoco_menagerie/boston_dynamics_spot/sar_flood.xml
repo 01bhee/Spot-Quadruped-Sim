@@ -1,0 +1,187 @@
+<mujoco model="spot_terrain_flood">
+  <!-- ============================================================
+       SAR SCENE V2 — FLOOD (cleaner walking path)
+       ============================================================
+       Changes from v1:
+       - Removed large pipe and barrels blocking center
+       - Kept water plane, lighting, and edge debris for atmosphere
+       - Friction stays at 0.4 (slippery wet)
+       ============================================================ -->
+
+  <include file="spot.xml"/>
+
+  <option timestep="0.002" iterations="50" solver="Newton" gravity="0 0 -9.81"/>
+
+  <visual>
+    <headlight diffuse="0.18 0.2 0.25" ambient="0.15 0.17 0.2" specular="0 0 0"/>
+    <rgba haze="0.15 0.18 0.22 1"/>
+    <global azimuth="135" elevation="-25" offwidth="1920" offheight="1080"/>
+    <quality shadowsize="4096"/>
+    <map fogstart="6" fogend="20"/>
+  </visual>
+
+  <asset>
+    <texture name="tex_sky" type="skybox" builtin="gradient"
+             rgb1="0.2 0.25 0.32" rgb2="0.08 0.1 0.15"
+             width="512" height="512"/>
+    <texture name="tex_floor" type="2d" builtin="checker"
+             rgb1="0.3 0.32 0.35" rgb2="0.22 0.24 0.28"
+             width="400" height="400"/>
+    <texture name="tex_wall" type="2d" builtin="checker"
+             rgb1="0.4 0.42 0.45" rgb2="0.32 0.34 0.38"
+             width="200" height="200"/>
+
+    <material name="mat_floor" texture="tex_floor" texrepeat="20 20"
+              specular="0.1" shininess="0.3" reflectance="0.05"/>
+    <material name="mat_wall" texture="tex_wall" texrepeat="3 2"
+              specular="0.15" shininess="0.2"/>
+    <material name="mat_wall_stained" rgba="0.25 0.28 0.32 1"
+              specular="0.2" shininess="0.3"/>
+    <material name="mat_water" rgba="0.15 0.25 0.35 0.55"
+              specular="0.6" shininess="0.7" reflectance="0.2"/>
+    <material name="mat_submerged_dark"  rgba="0.2 0.22 0.25 1" specular="0.1"/>
+    <material name="mat_submerged_mid"   rgba="0.28 0.3 0.33 1" specular="0.1"/>
+    <material name="mat_barrel_blue"     rgba="0.25 0.4 0.55 1" specular="0.3" shininess="0.4"/>
+    <material name="mat_barrel_rust"     rgba="0.5 0.3 0.2 1"   specular="0.2" shininess="0.2"/>
+    <material name="mat_crate_wood"      rgba="0.45 0.35 0.25 1" specular="0.1"/>
+    <material name="mat_crate_dark"      rgba="0.3 0.25 0.2 1"   specular="0.1"/>
+    <material name="mat_metal_twisted"   rgba="0.4 0.42 0.45 1" specular="0.5" shininess="0.5"/>
+    <material name="mat_pipe_rust"       rgba="0.45 0.3 0.22 1" specular="0.3" shininess="0.3"/>
+    <material name="mat_foam"            rgba="0.7 0.72 0.7 0.7"/>
+    <material name="mat_oil_slick"       rgba="0.15 0.12 0.1 0.6" specular="0.8" shininess="0.9"/>
+    <!-- mat_victim and mat_beacon removed — no navigation target in this scene -->
+  </asset>
+
+  <worldbody>
+
+    <!-- LIGHTING -->
+    <light name="sun" pos="0 4 18" dir="0 -0.3 -1"
+           diffuse="0.4 0.5 0.6" specular="0.1 0.12 0.15" castshadow="true"/>
+    <light name="ambient_blue" pos="0 -8 12" dir="0 0.4 -1"
+           diffuse="0.15 0.2 0.28" specular="0 0 0" castshadow="false"/>
+
+    <!-- FLOOR — friction 0.4 (slippery wet concrete) -->
+    <geom name="floor" type="plane" size="25 25 0.1"
+          material="mat_floor" friction="0.4 0.05 0.01"/>
+
+    <!-- WATER SURFACE -->
+    <geom name="water_surface" type="box" pos="0 0 0.08"
+          size="12 7 0.005" material="mat_water"
+          contype="0" conaffinity="0"/>
+
+    <!-- Foam and oil slicks (visual) -->
+    <geom name="foam_1" type="cylinder" pos="-3.0 1.5 0.085" size="0.5 0.003" material="mat_foam" contype="0" conaffinity="0"/>
+    <geom name="foam_2" type="cylinder" pos="2.0 -2.0 0.085" size="0.6 0.003" material="mat_foam" contype="0" conaffinity="0"/>
+    <geom name="foam_3" type="cylinder" pos="4.5 1.5 0.085" size="0.4 0.003" material="mat_foam" contype="0" conaffinity="0"/>
+    <geom name="oil_slick_1" type="cylinder" pos="-1.5 -2.5 0.085" size="0.7 0.003" material="mat_oil_slick" contype="0" conaffinity="0"/>
+    <geom name="oil_slick_2" type="cylinder" pos="1.5 2.8 0.085" size="0.5 0.003" material="mat_oil_slick" contype="0" conaffinity="0"/>
+
+    <!-- ============================================================
+         OUTER WALLS (water-stained at bottom)
+         ============================================================ -->
+    <geom name="wall_w_top_upper" type="box" pos="-8 3.5 1.7"  size="0.15 1.5 0.8" material="mat_wall"/>
+    <geom name="wall_w_top_lower" type="box" pos="-8 3.5 0.45" size="0.15 1.5 0.45" material="mat_wall_stained"/>
+    <geom name="wall_w_bot_upper" type="box" pos="-8 -3.5 1.7"  size="0.15 1.5 0.8" material="mat_wall"/>
+    <geom name="wall_w_bot_lower" type="box" pos="-8 -3.5 0.45" size="0.15 1.5 0.45" material="mat_wall_stained"/>
+    <geom name="wall_e_top_upper" type="box" pos="8 3.0 1.85"   size="0.15 2.0 0.95" material="mat_wall"/>
+    <geom name="wall_e_top_lower" type="box" pos="8 3.0 0.45"   size="0.15 2.0 0.45" material="mat_wall_stained"/>
+    <geom name="wall_e_bot_upper" type="box" pos="8 -3.0 1.85"  size="0.15 2.0 0.95" material="mat_wall"/>
+    <geom name="wall_e_bot_lower" type="box" pos="8 -3.0 0.45"  size="0.15 2.0 0.45" material="mat_wall_stained"/>
+
+    <geom name="wall_n_1_upper" type="box" pos="-5.0 5.0 1.6"  size="3.0 0.15 0.7" material="mat_wall"/>
+    <geom name="wall_n_1_lower" type="box" pos="-5.0 5.0 0.45" size="3.0 0.15 0.45" material="mat_wall_stained"/>
+    <geom name="wall_n_2_upper" type="box" pos="0.0 5.0 1.6"   size="1.5 0.15 0.7" material="mat_wall"/>
+    <geom name="wall_n_2_lower" type="box" pos="0.0 5.0 0.45"  size="1.5 0.15 0.45" material="mat_wall_stained"/>
+    <geom name="wall_n_3_upper" type="box" pos="5.0 5.0 1.6"   size="3.0 0.15 0.7" material="mat_wall"/>
+    <geom name="wall_n_3_lower" type="box" pos="5.0 5.0 0.45"  size="3.0 0.15 0.45" material="mat_wall_stained"/>
+
+    <geom name="wall_s_1_upper" type="box" pos="-5.0 -5.0 1.6"  size="3.0 0.15 0.7" material="mat_wall"/>
+    <geom name="wall_s_1_lower" type="box" pos="-5.0 -5.0 0.45" size="3.0 0.15 0.45" material="mat_wall_stained"/>
+    <geom name="wall_s_2_upper" type="box" pos="0.0 -5.0 1.6"   size="1.5 0.15 0.7" material="mat_wall"/>
+    <geom name="wall_s_2_lower" type="box" pos="0.0 -5.0 0.45"  size="1.5 0.15 0.45" material="mat_wall_stained"/>
+    <geom name="wall_s_3_upper" type="box" pos="5.0 -5.0 1.6"   size="3.0 0.15 0.7" material="mat_wall"/>
+    <geom name="wall_s_3_lower" type="box" pos="5.0 -5.0 0.45"  size="3.0 0.15 0.45" material="mat_wall_stained"/>
+
+    <!-- ============================================================
+         EDGE DEBRIS — barrels and crates pushed to the SIDES
+         ============================================================ -->
+
+    <!-- Big floating barrels at edges (atmospheric, off the path) -->
+    <geom name="edge_barrel_n1" type="cylinder" pos="-1.0 3.5 0.28" size="0.35 0.45" material="mat_barrel_blue"/>
+    <geom name="edge_barrel_n2" type="cylinder" pos="3.0 3.5 0.25" size="0.3 0.5" material="mat_barrel_rust" euler="0 90 30"/>
+    <geom name="edge_barrel_s1" type="cylinder" pos="-2.0 -3.5 0.28" size="0.35 0.4" material="mat_barrel_rust"/>
+    <geom name="edge_barrel_s2" type="cylinder" pos="2.5 -3.5 0.22" size="0.3 0.45" material="mat_barrel_blue" euler="0 80 0"/>
+
+    <!-- Twisted metal sheets at edges -->
+    <geom name="edge_metal_n" type="box" pos="-3.0 3.5 0.15" size="0.6 0.4 0.05"
+          material="mat_metal_twisted" euler="-15 10 25"/>
+    <geom name="edge_metal_s" type="box" pos="2.0 -3.5 0.18" size="0.5 0.35 0.04"
+          material="mat_metal_twisted" euler="20 -10 -30"/>
+
+    <!-- Half-submerged crates at edges -->
+    <geom name="edge_crate_n" type="box" pos="0.0 3.0 0.1" size="0.4 0.3 0.1"
+          material="mat_crate_dark" euler="0 0 30"/>
+    <geom name="edge_crate_s" type="box" pos="0.5 -3.0 0.12" size="0.35 0.28 0.12"
+          material="mat_crate_wood" euler="0 0 -25"/>
+
+    <!-- Pipe at far north edge -->
+    <geom name="edge_pipe" type="cylinder" pos="-2.0 4.0 0.4"
+          size="0.15 1.2" material="mat_pipe_rust" euler="0 90 -10"/>
+
+    <!-- ============================================================
+         WALKING PATH (Y near 0) — submerged debris that Spot can walk over
+         ============================================================ -->
+
+    <!-- Zone 1 (entry) -->
+    <geom name="z1_d1" type="box" pos="-4.5 0.3 0.07" size="0.25 0.2 0.07"
+          material="mat_submerged_dark" euler="0 0 30"/>
+    <geom name="z1_d2" type="box" pos="-4.0 -0.5 0.06" size="0.2 0.18 0.06"
+          material="mat_submerged_mid"/>
+    <geom name="z1_d3" type="cylinder" pos="-3.0 0.6 0.05" size="0.1 0.05"
+          material="mat_submerged_mid"/>
+    <geom name="z1_d4" type="box" pos="-2.5 -0.4 0.07" size="0.22 0.18 0.07"
+          material="mat_submerged_dark" euler="0 0 -20"/>
+    <!-- Small floating crate -->
+    <geom name="z1_float" type="box" pos="-3.5 0.0 0.13" size="0.2 0.15 0.05"
+          material="mat_crate_wood" euler="0 0 25"/>
+
+    <!-- Zone 2 (center) — mostly submerged, low debris -->
+    <geom name="z2_d1" type="box" pos="-1.5 0.4 0.07" size="0.22 0.18 0.07"
+          material="mat_submerged_mid"/>
+    <geom name="z2_d2" type="box" pos="-0.8 -0.3 0.06" size="0.2 0.16 0.06"
+          material="mat_submerged_dark" euler="0 0 35"/>
+    <geom name="z2_d3" type="cylinder" pos="0.0 0.0 0.05" size="0.1 0.05"
+          material="mat_submerged_mid"/>
+    <geom name="z2_d4" type="box" pos="0.5 0.5 0.07" size="0.2 0.18 0.07"
+          material="mat_submerged_dark"/>
+    <geom name="z2_d5" type="box" pos="1.0 -0.4 0.06" size="0.22 0.18 0.06"
+          material="mat_submerged_mid" euler="0 0 -40"/>
+    <geom name="z2_d6" type="box" pos="1.5 0.3 0.07" size="0.2 0.16 0.07"
+          material="mat_submerged_dark"/>
+    <!-- Floating wooden plank -->
+    <geom name="z2_float1" type="box" pos="-0.3 -0.6 0.13" size="0.3 0.08 0.05"
+          material="mat_crate_wood" euler="0 0 60"/>
+    <geom name="z2_float2" type="box" pos="0.8 0.7 0.13" size="0.25 0.08 0.04"
+          material="mat_crate_dark" euler="0 0 -45"/>
+
+    <!-- Zone 3 (final approach) -->
+    <geom name="z3_d1" type="box" pos="2.5 0.3 0.07" size="0.22 0.18 0.07"
+          material="mat_submerged_dark"/>
+    <geom name="z3_d2" type="cylinder" pos="3.0 -0.5 0.05" size="0.1 0.05"
+          material="mat_submerged_mid"/>
+    <geom name="z3_d3" type="box" pos="3.5 0.4 0.07" size="0.2 0.16 0.07"
+          material="mat_submerged_dark" euler="0 0 35"/>
+    <geom name="z3_d4" type="box" pos="4.0 -0.3 0.06" size="0.2 0.15 0.06"
+          material="mat_submerged_mid"/>
+    <geom name="z3_d5" type="box" pos="4.5 0.5 0.07" size="0.22 0.18 0.07"
+          material="mat_submerged_dark"/>
+    <geom name="z3_d6" type="box" pos="5.0 -0.2 0.06" size="0.2 0.16 0.06"
+          material="mat_submerged_mid" euler="0 0 -25"/>
+    <!-- Floating debris -->
+    <geom name="z3_float" type="box" pos="3.5 -0.7 0.12" size="0.25 0.08 0.05"
+          material="mat_crate_wood" euler="0 0 20"/>
+
+
+  </worldbody>
+
+</mujoco>

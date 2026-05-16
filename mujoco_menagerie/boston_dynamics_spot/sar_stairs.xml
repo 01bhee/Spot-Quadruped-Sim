@@ -1,0 +1,103 @@
+<mujoco model="spot_terrain_stairs">
+  <!-- ============================================================
+       TERRAIN SCENE — STAIRS
+       5 steps: rise=0.05m, run=0.30m → total height 0.25m
+       Staircase spans y=±3.5m (wider than the ±3m y-boundary limit
+       so the robot cannot walk around it — must climb to advance).
+       Friction: 0.8 on all surfaces (grippy concrete).
+       Robot spawns at x=-6.0 on flat ground, stairs begin at x=-4.0.
+       A flat landing continues from x=-2.5 onward at h=0.25m.
+       No navigation target — locomotion adaptation only.
+       ============================================================ -->
+
+  <include file="spot.xml"/>
+
+  <option timestep="0.002" iterations="50" solver="Newton" gravity="0 0 -9.81"/>
+
+  <visual>
+    <headlight diffuse="0.55 0.55 0.55" ambient="0.3 0.3 0.3" specular="0 0 0"/>
+    <rgba haze="0.5 0.5 0.52 1"/>
+    <global azimuth="135" elevation="-25" offwidth="1920" offheight="1080"/>
+    <quality shadowsize="4096"/>
+    <map fogstart="10" fogend="30"/>
+  </visual>
+
+  <asset>
+    <texture name="tex_sky" type="skybox" builtin="gradient"
+             rgb1="0.55 0.58 0.65" rgb2="0.3 0.32 0.38"
+             width="512" height="512"/>
+    <texture name="tex_floor" type="2d" builtin="checker"
+             rgb1="0.55 0.55 0.55" rgb2="0.45 0.45 0.45"
+             width="300" height="300"/>
+    <texture name="tex_step" type="2d" builtin="checker"
+             rgb1="0.52 0.52 0.55" rgb2="0.42 0.42 0.45"
+             width="100" height="100"/>
+
+    <material name="mat_floor" texture="tex_floor" texrepeat="20 20" specular="0.1" shininess="0.1"/>
+    <material name="mat_step"  texture="tex_step"  texrepeat="4 4"   specular="0.15" shininess="0.2"/>
+  </asset>
+
+  <worldbody>
+
+    <light name="sun" pos="0 0 20" dir="0 -0.2 -1"
+           diffuse="0.85 0.85 0.85" specular="0.15 0.15 0.15" castshadow="true"/>
+    <light name="fill" pos="0 -10 15" dir="0 0.4 -1"
+           diffuse="0.3 0.3 0.35" specular="0 0 0" castshadow="false"/>
+
+    <!-- APPROACH FLOOR — flat ground from spawn (x=-6) to stair base (x=-4) -->
+    <geom name="floor" type="plane" size="25 25 0.1"
+          material="mat_floor" friction="0.8 0.05 0.01"/>
+
+    <!-- ============================================================
+         STAIRCASE — solid-block stacking method.
+         Each block fills the full volume from z=0 up to that step's
+         top surface, so there are no gaps or overhangs to clip through.
+
+         step_height = 0.05 m
+         step_depth  = 0.30 m
+         half_width  = 3.5  m  (total 7m, beyond ±3m y-boundary)
+         x_start     = -4.0 m
+
+         Step i (1-indexed):
+           x_center = x_start + (i - 0.5) * step_depth
+           z_half   = i * step_height / 2
+           geom half-sizes: (step_depth/2, half_width, z_half)
+         ============================================================ -->
+
+    <!-- Step 1 — top surface at z=0.05 -->
+    <geom name="step1" type="box"
+          pos="-3.85 0 0.025" size="0.15 3.5 0.025"
+          material="mat_step" friction="0.8 0.05 0.01"/>
+
+    <!-- Step 2 — top surface at z=0.10 -->
+    <geom name="step2" type="box"
+          pos="-3.55 0 0.05" size="0.15 3.5 0.05"
+          material="mat_step" friction="0.8 0.05 0.01"/>
+
+    <!-- Step 3 — top surface at z=0.15 -->
+    <geom name="step3" type="box"
+          pos="-3.25 0 0.075" size="0.15 3.5 0.075"
+          material="mat_step" friction="0.8 0.05 0.01"/>
+
+    <!-- Step 4 — top surface at z=0.20 -->
+    <geom name="step4" type="box"
+          pos="-2.95 0 0.10" size="0.15 3.5 0.10"
+          material="mat_step" friction="0.8 0.05 0.01"/>
+
+    <!-- Step 5 — top surface at z=0.25 -->
+    <geom name="step5" type="box"
+          pos="-2.65 0 0.125" size="0.15 3.5 0.125"
+          material="mat_step" friction="0.8 0.05 0.01"/>
+
+    <!-- ============================================================
+         LANDING PLATFORM — flat elevated surface from x=-2.5 to x=15.
+         Top surface flush with step 5 at z=0.25m.
+         Robot walks here after climbing the stairs.
+         ============================================================ -->
+    <geom name="landing" type="box"
+          pos="6.25 0 0.125" size="8.75 3.5 0.125"
+          material="mat_step" friction="0.8 0.05 0.01"/>
+
+  </worldbody>
+
+</mujoco>

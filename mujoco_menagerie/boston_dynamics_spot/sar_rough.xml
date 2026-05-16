@@ -1,0 +1,152 @@
+<mujoco model="spot_terrain_rough">
+  <!-- ============================================================
+       TERRAIN SCENE — ROUGH / RUBBLE GROUND
+       Friction: 1.0 (rocky concrete, good grip)
+
+       IMPORTANT — MuJoCo size is HALF-EXTENT, so:
+         size z=0.03  → total height 6 cm   ← step-over challenge
+         size z=0.06  → total height 12 cm  ← physically impossible
+       All rubble heights are 4–8 cm total (size z = 0.02–0.04).
+
+       Two rubble layers:
+         1. Scattered atmosphere (r1/r2/r3) — spread across full terrain
+         2. Path rubble (pr1–pr25)          — dense along y≈0 corridor,
+            heights domain-randomised each episode in SpotSAREnv.reset()
+            so the robot cannot memorise a fixed layout.
+       ============================================================ -->
+
+  <include file="spot.xml"/>
+
+  <option timestep="0.002" iterations="50" solver="Newton" gravity="0 0 -9.81"/>
+
+  <visual>
+    <headlight diffuse="0.28 0.26 0.22" ambient="0.22 0.2 0.18" specular="0 0 0"/>
+    <rgba haze="0.28 0.25 0.2 1"/>
+    <global azimuth="135" elevation="-25" offwidth="1920" offheight="1080"/>
+    <quality shadowsize="4096"/>
+    <map fogstart="10" fogend="28"/>
+  </visual>
+
+  <asset>
+    <texture name="tex_sky" type="skybox" builtin="gradient"
+             rgb1="0.35 0.32 0.28" rgb2="0.15 0.13 0.11"
+             width="512" height="512"/>
+    <texture name="tex_floor" type="2d" builtin="checker"
+             rgb1="0.42 0.4 0.37" rgb2="0.32 0.3 0.27"
+             width="400" height="400"/>
+
+    <material name="mat_floor"          texture="tex_floor" texrepeat="20 20" specular="0.05" shininess="0.05" reflectance="0"/>
+    <material name="mat_concrete_light" rgba="0.65 0.62 0.58 1" specular="0.05"/>
+    <material name="mat_concrete_mid"   rgba="0.5 0.47 0.43 1"  specular="0.05"/>
+    <material name="mat_concrete_dark"  rgba="0.35 0.32 0.28 1" specular="0.05"/>
+    <material name="mat_charred"        rgba="0.18 0.16 0.14 1" specular="0.02"/>
+    <material name="mat_brick"          rgba="0.55 0.32 0.25 1" specular="0.05"/>
+    <material name="mat_brick_dark"     rgba="0.42 0.25 0.2 1"  specular="0.05"/>
+    <material name="mat_rebar"          rgba="0.38 0.22 0.15 1" specular="0.3" shininess="0.3"/>
+    <material name="mat_dust"           rgba="0.62 0.57 0.5 0.9"/>
+    <material name="mat_dust_dark"      rgba="0.45 0.4 0.35 0.85"/>
+  </asset>
+
+  <worldbody>
+
+    <light name="sun" pos="0 4 18" dir="0 -0.3 -1"
+           diffuse="0.85 0.75 0.6" specular="0.15 0.12 0.08" castshadow="true"/>
+    <light name="ambient_fill" pos="0 -8 12" dir="0 0.4 -1"
+           diffuse="0.18 0.18 0.22" specular="0 0 0" castshadow="false"/>
+
+    <!-- FLOOR -->
+    <geom name="floor" type="plane" size="25 25 0.1"
+          material="mat_floor" friction="1 0.05 0.01"/>
+
+    <!-- ============================================================
+         SCATTERED ATMOSPHERE RUBBLE (r1/r2/r3)
+         Heights 4–8 cm total (size z = 0.02–0.04).
+         Spread across full terrain width for visual variety.
+         ============================================================ -->
+
+    <!-- Zone 1 (x=-5 to -2) -->
+    <geom name="r1_a" type="box" pos="-4.5  1.2 0.03" size="0.13 0.11 0.03" material="mat_concrete_light" euler="0 0 25"/>
+    <geom name="r1_b" type="box" pos="-4.0 -1.5 0.025" size="0.1 0.09 0.025" material="mat_brick"/>
+    <geom name="r1_c" type="box" pos="-4.2  2.0 0.035" size="0.14 0.12 0.035" material="mat_concrete_mid" euler="0 0 40"/>
+    <geom name="r1_d" type="cylinder" pos="-3.0  1.5 0.02" size="0.08 0.02" material="mat_concrete_mid"/>
+    <geom name="r1_e" type="box" pos="-2.5 -1.8 0.03" size="0.12 0.10 0.03" material="mat_brick_dark" euler="0 0 45"/>
+    <geom name="r1_f" type="box" pos="-3.5  1.8 0.025" size="0.10 0.08 0.025" material="mat_charred"/>
+    <geom name="r1_g" type="box" pos="-3.0 -2.0 0.04" size="0.16 0.13 0.04" material="mat_concrete_dark"/>
+    <geom name="r1_h" type="box" pos="-4.8 -2.5 0.035" size="0.13 0.10 0.035" material="mat_brick"/>
+    <geom name="r1_i" type="box" pos="-2.8  2.5 0.03" size="0.11 0.09 0.03" material="mat_concrete_light" euler="0 0 -30"/>
+
+    <!-- Zone 2 (x=-2 to +2) -->
+    <geom name="r2_a" type="box" pos="-1.5  1.5 0.035" size="0.14 0.12 0.035" material="mat_concrete_dark" euler="0 0 30"/>
+    <geom name="r2_b" type="box" pos="-1.0 -1.8 0.03" size="0.12 0.10 0.03" material="mat_brick"/>
+    <geom name="r2_c" type="cylinder" pos="-0.5  2.0 0.025" size="0.09 0.025" material="mat_concrete_mid"/>
+    <geom name="r2_d" type="box" pos=" 0.0 -2.2 0.035" size="0.13 0.11 0.035" material="mat_concrete_light" euler="0 0 -20"/>
+    <geom name="r2_e" type="box" pos=" 0.5  2.2 0.03" size="0.11 0.09 0.03" material="mat_brick_dark"/>
+    <geom name="r2_f" type="box" pos=" 1.0 -1.5 0.04" size="0.17 0.14 0.04" material="mat_charred" euler="0 0 50"/>
+    <geom name="r2_g" type="cylinder" pos=" 1.5  1.8 0.025" size="0.08 0.025" material="mat_rebar"/>
+    <geom name="r2_h" type="box" pos="-0.3 -2.5 0.03" size="0.12 0.10 0.03" material="mat_concrete_mid"/>
+    <geom name="r2_i" type="box" pos=" 0.7  2.5 0.035" size="0.13 0.10 0.035" material="mat_brick"/>
+    <geom name="r2_j" type="box" pos="-1.2  2.8 0.04" size="0.15 0.12 0.04" material="mat_concrete_dark" euler="0 0 15"/>
+    <geom name="r2_k" type="box" pos=" 1.8 -2.8 0.03" size="0.11 0.09 0.03" material="mat_concrete_light"/>
+    <geom name="r2_pile" type="ellipsoid" pos="0.5 -2.5 0.035" size="0.5 0.4 0.035" material="mat_concrete_dark"/>
+
+    <!-- Zone 3 (x=+2 to +6) -->
+    <geom name="r3_a" type="box" pos=" 2.5  1.5 0.03" size="0.13 0.11 0.03" material="mat_concrete_dark"/>
+    <geom name="r3_b" type="box" pos=" 3.0 -1.8 0.025" size="0.10 0.08 0.025" material="mat_brick"/>
+    <geom name="r3_c" type="box" pos=" 4.0  2.0 0.04" size="0.17 0.14 0.04" material="mat_concrete_light" euler="0 0 -15"/>
+    <geom name="r3_d" type="cylinder" pos=" 4.5 -1.5 0.02" size="0.08 0.02" material="mat_concrete_mid"/>
+    <geom name="r3_e" type="box" pos=" 3.5  2.2 0.03" size="0.12 0.10 0.03" material="mat_brick_dark"/>
+    <geom name="r3_f" type="box" pos=" 5.0 -2.0 0.04" size="0.15 0.12 0.04" material="mat_concrete_dark" euler="0 0 30"/>
+    <geom name="r3_g" type="box" pos=" 4.5  1.8 0.035" size="0.13 0.11 0.035" material="mat_charred"/>
+    <geom name="r3_h" type="box" pos=" 2.8 -2.5 0.035" size="0.14 0.11 0.035" material="mat_brick"/>
+    <geom name="r3_i" type="box" pos=" 3.5  2.8 0.03" size="0.12 0.09 0.03" material="mat_concrete_light" euler="0 0 20"/>
+    <geom name="r3_j" type="box" pos=" 5.5  2.2 0.04" size="0.15 0.12 0.04" material="mat_concrete_mid"/>
+
+    <!-- ============================================================
+         PATH RUBBLE (pr1–pr25)
+         Dense along the robot's forward corridor, y between ±0.25m.
+         Base height 6 cm total (size z = pos z = 0.03).
+         Heights domain-randomised each episode (4–8 cm) via
+         SpotSAREnv._randomize_rubble() — robot cannot memorise layout.
+         Spaced every 0.4 m from x=-4.8 to x=4.8 (25 pieces).
+         ============================================================ -->
+
+    <!-- Zone A: x = -4.8 to -2.0 -->
+    <geom name="pr1"  type="box" pos="-4.8  0.15 0.03" size="0.15 0.12 0.03" material="mat_brick"/>
+    <geom name="pr2"  type="box" pos="-4.4 -0.15 0.03" size="0.14 0.11 0.03" material="mat_concrete_mid"/>
+    <geom name="pr3"  type="box" pos="-4.0  0.10 0.03" size="0.15 0.12 0.03" material="mat_brick_dark"/>
+    <geom name="pr4"  type="box" pos="-3.6 -0.20 0.03" size="0.14 0.11 0.03" material="mat_concrete_dark"/>
+    <geom name="pr5"  type="box" pos="-3.2  0.20 0.03" size="0.15 0.12 0.03" material="mat_concrete_light"/>
+    <geom name="pr6"  type="box" pos="-2.8 -0.10 0.03" size="0.14 0.11 0.03" material="mat_brick"/>
+    <geom name="pr7"  type="box" pos="-2.4  0.15 0.03" size="0.15 0.12 0.03" material="mat_concrete_mid"/>
+    <geom name="pr8"  type="box" pos="-2.0 -0.15 0.03" size="0.14 0.11 0.03" material="mat_brick_dark"/>
+
+    <!-- Zone B: x = -1.6 to +1.6 -->
+    <geom name="pr9"  type="box" pos="-1.6  0.10 0.03" size="0.15 0.12 0.03" material="mat_concrete_dark"/>
+    <geom name="pr10" type="box" pos="-1.2 -0.20 0.03" size="0.14 0.11 0.03" material="mat_concrete_light"/>
+    <geom name="pr11" type="box" pos="-0.8  0.20 0.03" size="0.15 0.12 0.03" material="mat_brick"/>
+    <geom name="pr12" type="box" pos="-0.4 -0.10 0.03" size="0.14 0.11 0.03" material="mat_concrete_mid"/>
+    <geom name="pr13" type="box" pos=" 0.0  0.15 0.03" size="0.15 0.12 0.03" material="mat_brick_dark"/>
+    <geom name="pr14" type="box" pos=" 0.4 -0.15 0.03" size="0.14 0.11 0.03" material="mat_concrete_dark"/>
+    <geom name="pr15" type="box" pos=" 0.8  0.10 0.03" size="0.15 0.12 0.03" material="mat_concrete_light"/>
+    <geom name="pr16" type="box" pos=" 1.2 -0.20 0.03" size="0.14 0.11 0.03" material="mat_brick"/>
+    <geom name="pr17" type="box" pos=" 1.6  0.20 0.03" size="0.15 0.12 0.03" material="mat_concrete_mid"/>
+
+    <!-- Zone C: x = +2.0 to +4.8 -->
+    <geom name="pr18" type="box" pos=" 2.0 -0.10 0.03" size="0.15 0.12 0.03" material="mat_brick_dark"/>
+    <geom name="pr19" type="box" pos=" 2.4  0.15 0.03" size="0.14 0.11 0.03" material="mat_concrete_dark"/>
+    <geom name="pr20" type="box" pos=" 2.8 -0.15 0.03" size="0.15 0.12 0.03" material="mat_brick"/>
+    <geom name="pr21" type="box" pos=" 3.2  0.10 0.03" size="0.14 0.11 0.03" material="mat_concrete_mid"/>
+    <geom name="pr22" type="box" pos=" 3.6 -0.20 0.03" size="0.15 0.12 0.03" material="mat_concrete_light"/>
+    <geom name="pr23" type="box" pos=" 4.0  0.20 0.03" size="0.14 0.11 0.03" material="mat_brick_dark"/>
+    <geom name="pr24" type="box" pos=" 4.4 -0.10 0.03" size="0.15 0.12 0.03" material="mat_concrete_dark"/>
+    <geom name="pr25" type="box" pos=" 4.8  0.15 0.03" size="0.14 0.11 0.03" material="mat_brick"/>
+
+    <!-- Dust patches — visual only -->
+    <geom name="dust_1" type="cylinder" pos="-2.5  1.5 0.015" size="0.7 0.015" material="mat_dust"      contype="0" conaffinity="0"/>
+    <geom name="dust_2" type="cylinder" pos=" 2.0 -1.5 0.015" size="0.6 0.015" material="mat_dust_dark" contype="0" conaffinity="0"/>
+    <geom name="dust_3" type="cylinder" pos=" 0.0  2.0 0.015" size="0.65 0.015" material="mat_dust"     contype="0" conaffinity="0"/>
+    <geom name="dust_4" type="cylinder" pos="-4.0 -2.0 0.015" size="0.6 0.015" material="mat_dust_dark" contype="0" conaffinity="0"/>
+
+  </worldbody>
+
+</mujoco>

@@ -26,39 +26,7 @@ ENABLE_GAIT_SHAPING  = True   # Phase A: off. Switch on in Phase B.
 
 
 class SpotEnv(gym.Env):
-    """
-    Spot quadruped locomotion env with a two-phase training plan.
-
-    PHASE 1: ENABLE_PATH_FIDELITY=False, ENABLE_GAIT_SHAPING=False
-        - Velocity-first reward only. Robot discovers forward motion.
-        - 52-dim observation (y-position added but reward ignores it).
-        - Train ~100k steps from scratch. Save as model1B_v2_phaseA.
-
-    PHASE 2: ENABLE_PATH_FIDELITY=False, ENABLE_GAIT_SHAPING=True
-        - Full gait shaping terms active. Trot emerges.
-        - Warm-start from phaseA. Train ~150k steps.
-        - Save as model1B_v2_phaseB.
-
-    PHASE 3: ENABLE_PATH_FIDELITY=True, ENABLE_GAIT_SHAPING=True
-        - Path fidelity terms active. Trot learns to stay centered.
-        - Warm-start from phaseB. Train ~100k steps.
-        - Save as model1B_v2 (curriculum warm-start).
-
-    FIXES IN THIS VERSION
-    ---------------------
-    1. Y-boundary termination: flat ground XML has no walls, so the
-       robot could drift to y=-23m accumulating -1000 reward/step
-       for the full 10k episode. Now the episode terminates if the
-       robot goes beyond ±3m in Y.
-    2. Path penalty weight reduced 2.0 -> 0.5 for flat-ground Phase C.
-       On flat ground there are no physical barriers so large Y drift
-       was producing -9M episode rewards and destabilising the value
-       function. 0.5 is enough to incentivise centering without
-       catastrophic penalties during the correction phase.
-       NOTE: restore to 2.0 in spot_sar_env.py for the curriculum —
-       the SAR scenes have terrain boundaries that naturally limit drift.
-    """
-
+   
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 50}
 
     def __init__(self, model_path, render_mode=None):
@@ -84,7 +52,6 @@ class SpotEnv(gym.Env):
 
         self.action_space = spaces.Box(low=-1, high=1, shape=(12,), dtype=np.float32)
         # 52-dim: y-position is always in the observation regardless of phase.
-        # The reward may or may not use it depending on the toggles above.
         self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(52,), dtype=np.float32)
 
     def render(self):
@@ -220,31 +187,17 @@ class SpotEnv(gym.Env):
         reward_symmetry = 2.5 * float(np.exp(-np.square(pair_A_air - pair_B_air) / 0.15))
 
         # 15. DIRECTION, VERTICAL, POSE
-        # Always use weight 5.0 — lateral velocity is never desirable, even
-        # in early phases. The old phase-dependent 2.0 was too weak and
-        # allowed the policy to exploit diagonal walking.
         direction_penalty = (np.square(self.data.qvel[1]) + np.square(self.data.qvel[5])) * 5.0
         cost_vertical      = 0.3 * np.square(self.data.qvel[2])
         cost_pose_deviation = 0.3 * np.sum(np.square(self.data.qpos[7:19] - self.home_pose))
 
-        # 15b. YAW ANGLE PENALTY (new)
-        # Penalise the robot for *being* turned off-heading, not just for
-        # turning. Without this the robot can settle at a fixed diagonal
-        # heading (qvel[5] ≈ 0 so no yaw-rate penalty) and walk sideways
-        # indefinitely. We extract yaw from the quaternion:
-        #   qpos[3:7] = [qw, qx, qy, qz]
-        #   yaw = atan2(2(qw*qz + qx*qy), 1 - 2(qy² + qz²))
+        # 15b. YAW ANGLE PENALTY (might remove)
         qw, qx, qy_q, qz = self.data.qpos[3], self.data.qpos[4], self.data.qpos[5], self.data.qpos[6]
         yaw = np.arctan2(2.0 * (qw * qz + qx * qy_q),
                          1.0 - 2.0 * (qy_q**2 + qz**2))
         cost_yaw_heading = 4.0 * np.square(yaw)
 
         # 16. PATH FIDELITY
-        # Always apply a mild lateral-position penalty (weight 0.3) so that
-        # drift is discouraged from the start, not just in Phase C.
-        # Phase C ups the weight to 0.5 for stronger centering.
-        # In spot_sar_env.py the weight stays at 2.0 because SAR terrain
-        # has physical boundaries that naturally cap how far y can drift.
         y_pos = self.data.qpos[1]
         if ENABLE_PATH_FIDELITY:
             cost_path_deviation = 0.5 * np.square(y_pos)
@@ -253,11 +206,6 @@ class SpotEnv(gym.Env):
 
         # --- TOTAL ---
         if not ENABLE_GAIT_SHAPING:
-            # Phase A: velocity-first only. Robot's sole job is to move forward.
-            # No gait terms — they create conflicting gradients on a random policy
-            # and cause the "stand still" local optimum.
-            # direction_penalty, cost_yaw_heading, cost_path_deviation included
-            # even here so the policy never learns a slanted-walk shortcut.
             total_reward = (
                 reward_vel + reward_orient + reward_height + reward_alive
             ) - (
@@ -310,14 +258,7 @@ class SpotEnv(gym.Env):
         qx, qy = self.data.qpos[4], self.data.qpos[5]
         up_z = 1.0 - 2.0 * (qx**2 + qy**2)
 
-        # FIXED: Y-boundary termination.
-        # The flat ground XML has no walls. Without this, the robot can
-        # drift sideways indefinitely — we observed y=-23m across a full
-        # 10k-step episode, producing ep_rew_mean of -9.3M. Terminating
-        # at ±3m gives the episode a consequence for lateral drift and
-        # keeps per-episode penalties manageable so the value function
-        # can actually learn. 3m is generous — in the SAR scenes the
-        # usable corridor is roughly ±2m before terrain becomes degenerate.
+       
         y_out_of_bounds = bool(abs(self.data.qpos[1]) > 3.0)
 
         terminated = bool(
